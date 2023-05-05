@@ -9,13 +9,22 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
+#include <allegro5/allegro_font.h>
 #include "./functions.h"
 
 const float FPS = 60;
 const int CIRCLE_SIZE = 50;
-const int offset = 10;
+const int POINT_SIZE = 30;
+const int offset = 60;
+const int SCREEN_HEIGHT = 720;
+const int SCREEN_WIDTH = 1280;
+const int TURBO_SPEEd = 5;
+
+
+// function for player movement
 
 int main(int argc, char *argv[])
 {
@@ -23,15 +32,30 @@ int main(int argc, char *argv[])
 	ALLEGRO_EVENT_QUEUE *event_queue = NULL;
 	ALLEGRO_TIMER *timer = NULL;
 	ALLEGRO_KEYBOARD_STATE wait_key_State;
+	
 
 	bool running = true;
 	bool redraw = true;
-	float enemy_speed = 1.0;
+	bool pause = false;
+
 	int score = 0;
 	int posx = 50, posy = 50;
+
+	float initial_enemy_speed = 1.0;
+	float enemy_speed = 1.0;
+	float enemy_speed_increase = 0.1;
 	int enemy_count = 0;
 	bool enemy_alive = false;
 	int enemy_x, enemy_y;
+
+	int best_score = 0;
+	int turbo = 3;
+	bool turbo_active = false;
+
+	bool point_alive = false;
+	int point_x, point_y;
+
+	bool show_overlay = false;
 
 	// Initialize allegro
 	if (!al_init())
@@ -39,6 +63,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Failed to initialize allegro.\n");
 		return 1;
 	}
+	ALLEGRO_COLOR OVERLAY_COLOR = al_map_rgba(255, 100, 100, 0.5); //tiene que ir despues de al_init
 
 	if (!al_install_keyboard())
 	{
@@ -62,7 +87,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Create the display
-	display = al_create_display(800, 600);
+	display = al_create_display(SCREEN_WIDTH, SCREEN_HEIGHT);
 	if (!display)
 	{
 		fprintf(stderr, "Failed to create display.\n");
@@ -98,43 +123,6 @@ int main(int argc, char *argv[])
 		al_init_timeout(&timeout, 0.06);
 		al_get_keyboard_state(&wait_key_State);
 
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_ESCAPE))
-		{
-			running = false;
-		}
-
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_UP))
-		{
-			posy -= 10;
-		}
-
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_DOWN))
-		{
-			posy += 10;
-		}
-
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_LEFT))
-		{
-			posx -= 10;
-		}
-
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_RIGHT))
-		{
-			posx += 10;
-		}
-
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_SPACE))
-		{
-			printf("Space pressed\n");
-			score++;
-			enemy_alive = false;
-		}
-
-		if (al_key_down(&wait_key_State, ALLEGRO_KEY_Q))
-		{
-			enemy_speed += 0.1;
-		}
-
 		// Fetch the event (if one exists)
 		bool get_event = al_wait_for_event_until(event_queue, &event, &timeout);
 
@@ -160,54 +148,64 @@ int main(int argc, char *argv[])
 		{
 			// Redraw
 			al_clear_to_color(al_map_rgb(0, 0, 0));
-			// al_draw_line(10, 10, 100, 10, al_map_rgb(0, 255, 255), 1);
-			al_draw_filled_circle(posx, posy, CIRCLE_SIZE, al_map_rgb(255, 255, 255)); // personaje
-			if (!enemy_alive)
+			controls(&running, &show_overlay, &pause, &wait_key_State);
+			if (!pause)
 			{
-				enemy_x = generateRandom(0, 800);
-				enemy_y = generateRandom(0, 600);
-				enemy_alive = true;
+				movePlayer(&posx, &posy, &wait_key_State);
+
+				if (!point_alive)
+				{
+					point_alive = true;
+					point_x = generateRandom(0, SCREEN_WIDTH);
+					point_y = generateRandom(0, SCREEN_HEIGHT);
+				}
+				if (!enemy_alive)
+				{
+					enemy_x = generateRandom(0, 800);
+					enemy_y = generateRandom(0, 600);
+					enemy_alive = true;
+				}
+				else
+				{
+					moveEnemyToPlayer(posx, posy, &enemy_x, &enemy_y, enemy_speed);
+					if (checkCollision(enemy_x, enemy_y, posx, posy, CIRCLE_SIZE))
+					{
+						printf("GAME OVER\n");
+						enemy_alive = false;
+						enemy_speed = initial_enemy_speed;
+						if (score > best_score)
+						{
+							best_score = score;
+						}
+						score = 0;
+					}
+				}
+				if (checkCollision(point_x, point_y, posx, posy, POINT_SIZE))
+				{
+					score++;
+					enemy_speed += enemy_speed_increase;
+					point_alive = false;
+				}
 			}
-			else
+			al_draw_filled_circle(posx, posy, CIRCLE_SIZE, al_map_rgb(255, 255, 100));		 // personaje
+			al_draw_filled_circle(enemy_x, enemy_y, CIRCLE_SIZE, al_map_rgb(255, 255, 255)); // enemigo
+			al_draw_filled_circle(point_x, point_y, POINT_SIZE, al_map_rgb(255, 100, 255));	 // enemigo
+
+			if (show_overlay)
 			{
-				if (enemy_x + CIRCLE_SIZE < posx - CIRCLE_SIZE)
+				al_draw_textf(al_create_builtin_font(), OVERLAY_COLOR, 10, 10, 0, "Score: %d", score);
+				al_draw_textf(al_create_builtin_font(), OVERLAY_COLOR, 10, 20, 0, "Enemy speed: %.1f", enemy_speed);
+				if (best_score > 0)
 				{
-					enemy_x += enemy_speed;
+					al_draw_textf(al_create_builtin_font(), OVERLAY_COLOR, 10, 30, 0, "Best score: %d", best_score);
 				}
-				if (enemy_x - CIRCLE_SIZE > posx + CIRCLE_SIZE)
-				{
-					enemy_x -= enemy_speed;
-				}
-				if (enemy_y + CIRCLE_SIZE < posy - CIRCLE_SIZE)
-				{
-					enemy_y += enemy_speed;
-				}
-
-				if (enemy_y - CIRCLE_SIZE > posy + CIRCLE_SIZE)
-				{
-					enemy_y -= enemy_speed;
-				}
-				if (enemy_x + CIRCLE_SIZE < posx - CIRCLE_SIZE && enemy_y + CIRCLE_SIZE < posy - CIRCLE_SIZE)//MAL
-				{
-					printf("GAME OVER\n");
-					enemy_alive = false;
-				}
-				// else
-				// {
-				// 	printf("GAME OVER\n");
-				// 	enemy_alive = false;
-				// }
 			}
-
-			// function to check collision btween 2 circles
-
-			al_draw_filled_circle(enemy_x, enemy_y, CIRCLE_SIZE, al_map_rgb(255, 255, 255)); // personaje
-
+			if(pause){
+				al_draw_textf(al_create_builtin_font(), OVERLAY_COLOR, 10, SCREEN_HEIGHT - 10, 0, "GAME PAUSED");
+			}
 			al_flip_display();
 			redraw = false;
 		}
-		// al_draw_line(100, 100, 400, 400, al_map_rgb(255, 0, 0), 3);
-		// al_draw_filled_circle(400, 300, 50, al_map_rgb(0, 255, 255));
 	}
 
 	// Clean up
