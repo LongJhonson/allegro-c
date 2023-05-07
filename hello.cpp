@@ -32,6 +32,8 @@ int main(int argc, char *argv[])
 	ALLEGRO_EVENT_QUEUE *event_queue = NULL;
 	ALLEGRO_TIMER *timer = NULL;
 	ALLEGRO_KEYBOARD_STATE wait_key_State;
+
+	int pulsed_key = 0;
 	
 
 	bool running = true;
@@ -148,7 +150,7 @@ int main(int argc, char *argv[])
 		{
 			// Redraw
 			al_clear_to_color(al_map_rgb(0, 0, 0));
-			controls(&running, &show_overlay, &pause, &wait_key_State);
+			controls(&running, &show_overlay, &pause, &pulsed_key, &wait_key_State);
 			if (!pause)
 			{
 				movePlayer(&posx, &posy, &wait_key_State);

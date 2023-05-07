@@ -78,7 +78,7 @@ void movePlayer(int *posx, int *posy, ALLEGRO_KEYBOARD_STATE *keyState)
     }
 }
 
-void controls(bool *running, bool *show_overlay, bool *pause, ALLEGRO_KEYBOARD_STATE *keyState)
+void controls(bool *running, bool *show_overlay, bool *pause, int *pulsed_key, ALLEGRO_KEYBOARD_STATE *keyState)
 {
     if (al_key_down(keyState, ALLEGRO_KEY_ESCAPE))
     {
@@ -97,6 +97,7 @@ void controls(bool *running, bool *show_overlay, bool *pause, ALLEGRO_KEYBOARD_S
     if (al_key_down(keyState, ALLEGRO_KEY_W))
     {
         *pause = !*pause;
+        // *pulsed_key = ALLEGRO_KEY_W;
     }
 }
 
